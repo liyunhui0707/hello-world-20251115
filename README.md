@@ -1,31 +1,25 @@
-# Snake (multiplayer-ready scaffold)
+# Snake (2P scaffold)
 
-This repository contains a modular Snake starter using **Pygame**.
+This repository now contains a modular starter implementation of a 2-player Snake game using **Pygame**, currently with **Snake A** movement only.
 
 ## Implemented
 
 - Window: **960×640**
 - Grid: **30×20** cells (32×32 each)
 - Fixed logic tick rate: **10 updates/sec**
-- Wrapping movement across screen edges
-- Snake A controls: **Arrow keys**
+- Snake A movement with **Arrow keys**
+- Screen-edge wrapping
 
-## Multiplayer-ready architecture
-
-- `snake_core.py` keeps movement rules independent from rendering
-- `snake_game.py` supports **player profiles** (controls, color, spawn, direction)
-- Input mapping is centralized and conflict-checked
-- Game update/render loops already iterate over all snakes
-- Snake B profile (WASD + different color) can be enabled with:
-
-```python
-SnakeGame(GameConfig(enable_snake_b=True)).run()
-```
-
-## Tests
+## Run
 
 ```bash
-pytest -q
+python -m pip install pygame
+python snake_game.py
 ```
 
-Covers wrapping, movement update, and defensive direction constraints.
+## Next steps
+
+- Add Snake B (WASD or other controls)
+- Food/spawn system
+- Growth and collision handling
+- Score and game over states

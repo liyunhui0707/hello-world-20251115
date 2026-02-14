@@ -10,8 +10,6 @@ Vec2 = Tuple[int, int]
 
 
 class Direction(Enum):
-    """Cardinal movement directions represented as grid deltas."""
-
     UP = (0, -1)
     DOWN = (0, 1)
     LEFT = (-1, 0)
@@ -39,8 +37,6 @@ class Snake:
     def __init__(self, initial_body: Deque[Vec2], initial_direction: Direction) -> None:
         if not initial_body:
             raise ValueError("Snake body cannot be empty")
-
-        # Body is ordered from head (index 0) to tail (last index).
         self.body: Deque[Vec2] = initial_body
         self.direction: Direction = initial_direction
 
