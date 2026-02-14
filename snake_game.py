@@ -7,12 +7,16 @@ Controls:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+from typing import Deque, Tuple
 from collections import deque
-from typing import Tuple
 
 import pygame
 
-from snake_core import Direction, Snake
+from grid_utils import wrap_position
+
+
+Vec2 = Tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,46 @@ class GameConfig:
     @property
     def grid_height(self) -> int:
         return self.window_height // self.cell_size
+
+
+class Direction(Enum):
+    UP = (0, -1)
+    DOWN = (0, 1)
+    LEFT = (-1, 0)
+    RIGHT = (1, 0)
+
+    @property
+    def vec(self) -> Vec2:
+        return self.value
+
+
+class Snake:
+    """Represents a snake body and movement rules on a wrapping grid."""
+
+    def __init__(self, initial_body: Deque[Vec2], initial_direction: Direction) -> None:
+        self.body: Deque[Vec2] = initial_body
+        self.direction: Direction = initial_direction
+
+    @property
+    def head(self) -> Vec2:
+        return self.body[0]
+
+    def set_direction(self, direction: Direction) -> None:
+        """Set travel direction, preventing instant 180-degree reversals."""
+        dx, dy = self.direction.vec
+        ndx, ndy = direction.vec
+        if (dx + ndx, dy + ndy) == (0, 0):
+            return
+        self.direction = direction
+
+    def step(self, grid_w: int, grid_h: int) -> None:
+        """Move one cell forward and wrap at edges."""
+        hx, hy = self.head
+        dx, dy = self.direction.vec
+        nx, ny = wrap_position(hx + dx, hy + dy, grid_w, grid_h)
+
+        self.body.appendleft((nx, ny))
+        self.body.pop()
 
 
 class SnakeGame:
