@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from enum import Enum
-from typing import Deque, Tuple
+from typing import Deque, Iterable, Set, Tuple
 
 from grid_utils import wrap_position
 
@@ -10,6 +10,8 @@ Vec2 = Tuple[int, int]
 
 
 class Direction(Enum):
+    """Cardinal movement directions represented as `(dx, dy)` deltas."""
+
     UP = (0, -1)
     DOWN = (0, 1)
     LEFT = (-1, 0)
@@ -17,6 +19,7 @@ class Direction(Enum):
 
     @property
     def vec(self) -> Vec2:
+        """Return `(dx, dy)` vector for this direction."""
         return self.value
 
 
@@ -32,22 +35,31 @@ def opposite_of(direction: Direction) -> Direction:
 
 
 class Snake:
-    """Represents a snake body and movement rules on a wrapping grid."""
+    """Snake movement model independent from rendering/input frameworks."""
 
     def __init__(self, initial_body: Deque[Vec2], initial_direction: Direction) -> None:
         if not initial_body:
             raise ValueError("Snake body cannot be empty")
+
+        # Body order is head -> tail.
         self.body: Deque[Vec2] = initial_body
         self.direction: Direction = initial_direction
 
     @property
     def head(self) -> Vec2:
+        """Current head coordinate."""
         return self.body[0]
 
-    def set_direction(self, new_direction: Direction) -> bool:
-        """Update direction unless it would cause an immediate 180° reversal.
+    @property
+    def body_positions(self) -> Set[Vec2]:
+        """Fast lookup set of all occupied cells."""
+        return set(self.body)
 
-        Returns True if direction changed, False if ignored.
+    def set_direction(self, new_direction: Direction) -> bool:
+        """Change direction unless it is an immediate reversal.
+
+        Returns:
+            True when direction changed, otherwise False.
         """
         if new_direction == opposite_of(self.direction):
             return False
@@ -55,30 +67,54 @@ class Snake:
         self.direction = new_direction
         return True
 
-    def step(self, grid_w: int, grid_h: int) -> None:
-        """Advance one logic tick by moving head forward and dropping tail."""
-        self._validate_grid_size(grid_w, grid_h)
-
-        next_head = self.next_head_position(grid_w, grid_h)
-
-        # Insert new head and remove last tail segment to keep length constant.
-        self.body.appendleft(next_head)
-        self.body.pop()
-
     def next_head_position(self, grid_w: int, grid_h: int) -> Vec2:
-        """Compute the wrapped head position for the next movement tick."""
+        """Compute wrapped next head coordinate for current direction."""
         self._validate_grid_size(grid_w, grid_h)
-
         head_x, head_y = self.head
         delta_x, delta_y = self.direction.vec
         return wrap_position(head_x + delta_x, head_y + delta_y, grid_w, grid_h)
 
+    def move_snake(self, grid_w: int, grid_h: int, grow: bool = False) -> Vec2:
+        """Move snake by one step.
+
+        Args:
+            grid_w: Grid width in cells.
+            grid_h: Grid height in cells.
+            grow: If True, keep tail (snake length +1).
+
+        Returns:
+            New head position.
+        """
+        new_head = self.next_head_position(grid_w, grid_h)
+
+        # Insert new head at the front of the deque.
+        self.body.appendleft(new_head)
+
+        # If not growing this tick, remove tail to keep length constant.
+        if not grow:
+            self.body.pop()
+
+        return new_head
+
+    def step(self, grid_w: int, grid_h: int) -> None:
+        """Backward-compatible alias for a normal non-growth movement tick."""
+        self.move_snake(grid_w, grid_h, grow=False)
+
+    def check_collision(self, occupied: Iterable[Vec2]) -> bool:
+        """Return True if head overlaps any given occupied position."""
+        return self.head in set(occupied)
+
+    def check_self_collision(self) -> bool:
+        """Return True if head collides with any non-head segment."""
+        return self.head in list(self.body)[1:]
+
     @staticmethod
     def _validate_grid_size(grid_w: int, grid_h: int) -> None:
+        """Validate grid dimensions before modulo-wrapping math is used."""
         if grid_w <= 0 or grid_h <= 0:
             raise ValueError("Grid dimensions must be positive")
 
 
 def make_body(*coords: Vec2) -> Deque[Vec2]:
-    """Convenience helper for tests and setup code."""
+    """Helper to build a deque body from inline coordinate tuples."""
     return deque(coords)
