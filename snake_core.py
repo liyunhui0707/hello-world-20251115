@@ -44,22 +44,41 @@ class Snake:
     def head(self) -> Vec2:
         return self.body[0]
 
-    def set_direction(self, new_direction: Direction) -> None:
-        """Prevent instant 180-degree reversals to avoid self-collisions."""
-        if new_direction != opposite_of(self.direction):
-            self.direction = new_direction
+    def set_direction(self, new_direction: Direction) -> bool:
+        """Update direction unless it would cause an immediate 180° reversal.
+
+        Returns True if direction changed, False if ignored.
+        """
+        if new_direction == opposite_of(self.direction):
+            return False
+
+        self.direction = new_direction
+        return True
 
     def step(self, grid_w: int, grid_h: int) -> None:
+        """Advance one logic tick by moving head forward and dropping tail."""
+        self._validate_grid_size(grid_w, grid_h)
+
+        next_head = self.next_head_position(grid_w, grid_h)
+
+        # Insert new head and remove last tail segment to keep length constant.
+        self.body.appendleft(next_head)
+        self.body.pop()
+
+    def next_head_position(self, grid_w: int, grid_h: int) -> Vec2:
+        """Compute the wrapped head position for the next movement tick."""
+        self._validate_grid_size(grid_w, grid_h)
+
+        head_x, head_y = self.head
+        delta_x, delta_y = self.direction.vec
+        return wrap_position(head_x + delta_x, head_y + delta_y, grid_w, grid_h)
+
+    @staticmethod
+    def _validate_grid_size(grid_w: int, grid_h: int) -> None:
         if grid_w <= 0 or grid_h <= 0:
             raise ValueError("Grid dimensions must be positive")
 
-        hx, hy = self.head
-        dx, dy = self.direction.vec
-        nx, ny = wrap_position(hx + dx, hy + dy, grid_w, grid_h)
-
-        self.body.appendleft((nx, ny))
-        self.body.pop()
-
 
 def make_body(*coords: Vec2) -> Deque[Vec2]:
+    """Convenience helper for tests and setup code."""
     return deque(coords)
