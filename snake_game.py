@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections import Counter, deque
 from dataclasses import dataclass
-import random
 from typing import Dict, Mapping, Tuple
 
 import pygame
@@ -40,7 +39,6 @@ class GameConfig:
     grid_line_color: Tuple[int, int, int] = (35, 35, 42)
     snake_a_color: Tuple[int, int, int] = (64, 220, 130)
     snake_b_color: Tuple[int, int, int] = (255, 165, 64)
-    egg_color: Tuple[int, int, int] = (255, 80, 110)
     enable_snake_b: bool = True
 
     @property
@@ -109,9 +107,6 @@ class SnakeGame:
         self.control_to_player = self._build_control_to_player_index(self.player_profiles)
         self.snakes: Dict[str, Snake] = self._create_snakes(self.player_profiles)
 
-        # Egg can be eaten by either snake and then respawns.
-        self.egg_position = self._random_empty_cell()
-
     def _build_control_to_player_index(self, players: Mapping[str, PlayerConfig]) -> Dict[int, str]:
         """Map key codes to player IDs and reject control collisions."""
         control_index: Dict[int, str] = {}
@@ -142,26 +137,6 @@ class SnakeGame:
             ]
         )
         return Snake(initial_body=body, initial_direction=profile.initial_direction)
-
-    def _all_occupied_cells(self) -> set[Tuple[int, int]]:
-        """All cells currently occupied by snakes."""
-        occupied: set[Tuple[int, int]] = set()
-        for snake in self.snakes.values():
-            occupied.update(snake.body_positions)
-        return occupied
-
-    def _random_empty_cell(self) -> Tuple[int, int]:
-        """Pick a random free grid cell for egg placement."""
-        occupied = self._all_occupied_cells()
-        candidates = [
-            (x, y)
-            for x in range(self.cfg.grid_width)
-            for y in range(self.cfg.grid_height)
-            if (x, y) not in occupied
-        ]
-        if not candidates:
-            raise RuntimeError("No free cells available for egg placement")
-        return random.choice(candidates)
 
     def initialize(self) -> None:
         pygame.init()
@@ -221,7 +196,7 @@ class SnakeGame:
         self.snakes[player_id].set_direction(direction)
 
     def _update_simulation(self) -> None:
-        """Move snakes every logic tick; eat egg to grow and respawn egg."""
+        """Move both snakes every logic tick while preventing overlap collisions."""
         next_heads = {
             player_id: snake.next_head_position(self.cfg.grid_width, self.cfg.grid_height)
             for player_id, snake in self.snakes.items()
@@ -229,17 +204,10 @@ class SnakeGame:
 
         blocked = self._find_blocked_snakes(next_heads)
 
-        egg_eaten = False
         for player_id, snake in self.snakes.items():
             if player_id in blocked:
                 continue
-
-            will_eat_egg = next_heads[player_id] == self.egg_position
-            snake.move_snake(self.cfg.grid_width, self.cfg.grid_height, grow=will_eat_egg)
-            egg_eaten = egg_eaten or will_eat_egg
-
-        if egg_eaten:
-            self.egg_position = self._random_empty_cell()
+            snake.move_snake(self.cfg.grid_width, self.cfg.grid_height)
 
     def _find_blocked_snakes(self, next_heads: Dict[str, Tuple[int, int]]) -> set[str]:
         """Identify snakes whose next move would overlap another snake segment/head."""
@@ -279,11 +247,10 @@ class SnakeGame:
         return blocked
 
     def _render_frame(self) -> None:
-        """Draw grid + egg + all snakes to the current frame."""
+        """Draw grid + all snakes to the current frame."""
         assert self.screen is not None
         self.screen.fill(self.cfg.background_color)
         self._draw_grid()
-        self._draw_egg(self.egg_position)
 
         for player_id, snake in self.snakes.items():
             color = self.player_profiles[player_id].color
@@ -300,18 +267,6 @@ class SnakeGame:
             pygame.draw.line(self.screen, c.grid_line_color, (x, 0), (x, c.window_height))
         for y in range(0, c.window_height, c.cell_size):
             pygame.draw.line(self.screen, c.grid_line_color, (0, y), (c.window_width, y))
-
-    def _draw_egg(self, egg_position: Tuple[int, int]) -> None:
-        """Render a single egg cell that either snake can eat."""
-        assert self.screen is not None
-        gx, gy = egg_position
-        rect = pygame.Rect(
-            gx * self.cfg.cell_size,
-            gy * self.cfg.cell_size,
-            self.cfg.cell_size,
-            self.cfg.cell_size,
-        )
-        pygame.draw.rect(self.screen, self.cfg.egg_color, rect)
 
     def _draw_snake(self, snake: Snake, color: Tuple[int, int, int]) -> None:
         """Render a snake body as filled rectangles on the grid."""
