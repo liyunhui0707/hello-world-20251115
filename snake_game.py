@@ -1,16 +1,13 @@
 """Two-player Snake scaffold with multiplayer-ready structure.
 
-Current controls:
+Controls:
 - Snake A: Arrow keys
-
-Notes:
-- Architecture supports multiple snakes with independent controls/colors/spawn.
-- Only Snake A is enabled by default.
+- Snake B: WASD
 """
 
 from __future__ import annotations
 
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from typing import Dict, Mapping, Tuple
 
@@ -42,7 +39,7 @@ class GameConfig:
     grid_line_color: Tuple[int, int, int] = (35, 35, 42)
     snake_a_color: Tuple[int, int, int] = (64, 220, 130)
     snake_b_color: Tuple[int, int, int] = (255, 165, 64)
-    enable_snake_b: bool = False
+    enable_snake_b: bool = True
 
     @property
     def grid_width(self) -> int:
@@ -61,7 +58,6 @@ class GameConfig:
 
     def build_player_profiles(self) -> Dict[str, PlayerConfig]:
         """Create default player profiles for the current config."""
-        mid_y = self.grid_height // 2
         profiles: Dict[str, PlayerConfig] = {
             "snake_a": PlayerConfig(
                 name="Snake A",
@@ -72,7 +68,8 @@ class GameConfig:
                     pygame.K_LEFT: Direction.LEFT,
                     pygame.K_RIGHT: Direction.RIGHT,
                 },
-                spawn_head=(self.grid_width // 3, mid_y),
+                # Top-left side start.
+                spawn_head=(2, 2),
                 initial_direction=Direction.RIGHT,
             )
         }
@@ -87,7 +84,8 @@ class GameConfig:
                     pygame.K_a: Direction.LEFT,
                     pygame.K_d: Direction.RIGHT,
                 },
-                spawn_head=((self.grid_width * 2) // 3, mid_y),
+                # Opposite corner from Snake A.
+                spawn_head=(self.grid_width - 3, self.grid_height - 3),
                 initial_direction=Direction.LEFT,
             )
 
@@ -143,7 +141,7 @@ class SnakeGame:
     def initialize(self) -> None:
         pygame.init()
         self.screen = pygame.display.set_mode((self.cfg.window_width, self.cfg.window_height))
-        pygame.display.set_caption("Snake (multiplayer-ready scaffold)")
+        pygame.display.set_caption("Snake (2 players)")
         self.clock = pygame.time.Clock()
         self.running = True
 
@@ -191,9 +189,55 @@ class SnakeGame:
         self.snakes[player_id].set_direction(direction)
 
     def _update_simulation(self) -> None:
-        """Move all snakes once per logic tick."""
-        for snake in self.snakes.values():
+        """Move both snakes every logic tick while preventing overlap collisions."""
+        next_heads = {
+            player_id: snake.next_head_position(self.cfg.grid_width, self.cfg.grid_height)
+            for player_id, snake in self.snakes.items()
+        }
+
+        blocked = self._find_blocked_snakes(next_heads)
+
+        for player_id, snake in self.snakes.items():
+            if player_id in blocked:
+                continue
             snake.move_snake(self.cfg.grid_width, self.cfg.grid_height)
+
+    def _find_blocked_snakes(self, next_heads: Dict[str, Tuple[int, int]]) -> set[str]:
+        """Identify snakes whose next move would overlap another snake segment/head."""
+        blocked: set[str] = set()
+
+        # Block if two snakes aim for the same next cell (head-on overlap).
+        for cell, count in Counter(next_heads.values()).items():
+            if count > 1:
+                blocked.update(pid for pid, head in next_heads.items() if head == cell)
+
+        # Block if snakes attempt to swap head positions in one tick.
+        player_ids = list(self.snakes.keys())
+        for i, first_id in enumerate(player_ids):
+            for second_id in player_ids[i + 1 :]:
+                if (
+                    next_heads[first_id] == self.snakes[second_id].head
+                    and next_heads[second_id] == self.snakes[first_id].head
+                ):
+                    blocked.add(first_id)
+                    blocked.add(second_id)
+
+        # Block moves into occupied body cells.
+        for player_id, snake in self.snakes.items():
+            candidate_head = next_heads[player_id]
+
+            # Own tail is excluded, because it moves away this tick.
+            own_forbidden = set(list(snake.body)[:-1])
+            other_forbidden = set()
+            for other_id, other_snake in self.snakes.items():
+                if other_id == player_id:
+                    continue
+                other_forbidden.update(other_snake.body_positions)
+
+            if candidate_head in own_forbidden or candidate_head in other_forbidden:
+                blocked.add(player_id)
+
+        return blocked
 
     def _render_frame(self) -> None:
         """Draw grid + all snakes to the current frame."""
