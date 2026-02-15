@@ -27,7 +27,7 @@ The game includes common arcade mechanics such as:
 - 2-player local gameplay on one keyboard
 - Smooth grid-based snake movement
 - **Wrap-around movement** at screen edges
-- **Egg eating / food collection** gameplay
+- **Egg eating / food collection** gameplay (both snakes can eat the same egg type)
 - **Obstacle** elements on the map
 - Collision rules (self, opponent, and environment)
 - Persistent **high score** saved in a local JSON file
