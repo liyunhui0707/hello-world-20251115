@@ -142,6 +142,13 @@ class SnakeGame:
         pygame.init()
         self.screen = pygame.display.set_mode((self.cfg.window_width, self.cfg.window_height))
         pygame.display.set_caption("Snake (2 players)")
+
+        # Ensure gameplay uses only key events; disable IME/text composition events
+        # so composed text is never routed to the game window.
+        pygame.key.stop_text_input()
+        pygame.event.set_blocked(pygame.TEXTINPUT)
+        pygame.event.set_blocked(pygame.TEXTEDITING)
+
         self.clock = pygame.time.Clock()
         self.running = True
 
